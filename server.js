@@ -54,24 +54,44 @@ function nextTurn() {
 io.on("connection", (socket) => {
   console.log("✅ Un joueur s'est connecté :", socket.id);
 
+  // Associer une table à ce joueur
+  socket.on("joinTable", (tableNumber) => {
+    socket.table = tableNumber; // on mémorise la table du joueur
+    console.log(`🎲 Joueur ${socket.id} a rejoint la table ${tableNumber}`);
+  });
+
   // Envoie l'état du jeu au nouveau joueur
   socket.emit("gameState", gameState);
 
   // Quand une table répond
   socket.on("answerQuestion", ({ table, isCorrect }) => {
+    // 🚨 Vérification : est-ce que ce joueur contrôle bien cette table ?
+    if (socket.table !== table) {
+      console.log(
+        `❌ Tentative invalide par ${socket.id} (table ${socket.table} → a essayé ${table})`
+      );
+      return; // on ignore la triche
+    }
+
     if (isCorrect) {
       gameState.scores[table] += 1;
       gameState.positions[table] += 1;
       gameState.attempts[table] = 0; // reset les échecs
-      gameState.log.push(`✅ Table ${table} a répondu juste et avance avec 1 point !`);
+      gameState.log.push(
+        `✅ Table ${table} a répondu juste et avance avec 1 point !`
+      );
     } else {
       gameState.attempts[table] += 1;
       if (gameState.attempts[table] >= 2) {
         gameState.positions[table] += 1;
         gameState.attempts[table] = 0;
-        gameState.log.push(`❌ Table ${table} a échoué 2 fois et avance sans point.`);
+        gameState.log.push(
+          `❌ Table ${table} a échoué 2 fois et avance sans point.`
+        );
       } else {
-        gameState.log.push(`⚠️ Table ${table} a échoué (${gameState.attempts[table]}/2).`);
+        gameState.log.push(
+          `⚠️ Table ${table} a échoué (${gameState.attempts[table]}/2).`
+        );
         io.emit("gameState", gameState);
         return; // On reste sur la même table pour un 2e essai
       }
@@ -92,7 +112,7 @@ io.on("connection", (socket) => {
 });
 
 // --- LANCEMENT DU SERVEUR ---
-const PORT = 3001;
+const PORT = process.env.PORT || 3001;
 server.listen(PORT, () => {
   console.log(`🚀 Serveur en ligne sur http://localhost:${PORT}`);
 });
